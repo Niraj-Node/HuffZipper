@@ -19,7 +19,7 @@ struct Node
     }
 };
 
-class huffman 
+class Huffman 
 {
     private:
         fstream openFile(const string &fileName, ios::openmode mode) {
@@ -47,7 +47,7 @@ class huffman
         priority_queue<Node*, vector<Node*>, Cmp> minHeap;
         
         // Initializing a vector representing character's ascii value and its frequency with 0
-        void createArr(string inFileName) 
+        void createArr() 
         {
             for(int i = 0; i < 128; i++) 
             {
@@ -55,7 +55,11 @@ class huffman
                 arr[i]->data = i;
                 arr[i]->freq = 0;
             }
-
+        }
+        
+        // Populating Min Heap by inserting Nodes of characters which appears in the input file
+        void createMinHeap(string inFileName) 
+        {
             fstream inFile = openFile(inFileName, ios::in);
             char id;
             inFile.get(id);
@@ -65,20 +69,17 @@ class huffman
                 inFile.get(id);
             }
             inFile.close();
-        }
-        
-        // Populating Min Heap by inserting Nodes of characters which appears in the input file
-        void createMinHeap() 
-        {
+
             for(int i = 0; i < 128; i++) 
             {
                 if(arr[i]->freq > 0)
                     minHeap.push(arr[i]);
             }
         }
+
+        // Constructing the Huffman Tree
         void createTree() 
         {
-            createMinHeap();
             Node *left, *right;
             priority_queue <Node*, vector<Node*>, Cmp> tempPQ(minHeap);
             while(tempPQ.size() != 1)
@@ -97,7 +98,6 @@ class huffman
                 tempPQ.push(root);
             }
         }
-
         // Traversing the constructed tree to generate huffman codes of each present character
         void traverse(Node* r, string str) 
         {
@@ -112,6 +112,7 @@ class huffman
         }
         // Generating Huffman codes
         void assignHCodes() {
+            createTree();
             // Traversing the Huffman Tree and assigning specific codes to each character as leaf node
             traverse(root, "");
         }
@@ -196,26 +197,96 @@ class huffman
             saveEncodedFile(encodedData, outFileName);
         }
 
-        void saveDecodedFile() {
-            // Reconstruct the Huffman tree from tree structure and metadata from the compressed file
-            // Decode the encoded data using the Huffman tree
-            // Save decoded data in the decompressed file
+        // Decode the input file and save the decompressed data to the output file
+        void saveDecodedFile(string inFileName, string outFileName) 
+        {
+            fstream inFile = openFile(inFileName, ios::in | ios::binary);
+
+            // Step 1: Reconstruct the Huffman tree from the tree structure and metadata from the compressed file
+            string line;
+            while(getline(inFile, line)) 
+            {
+                if(line == "@!#$END_MARKER$#@!") break;  // End marker of the metadata section
+                
+                istringstream iss(line);
+                string dataStr;
+                int freq;
+
+                // Read character and frequency from line
+                iss >> dataStr >> freq;
+
+                // Handle escaped characters
+                char ch;
+                if (dataStr == "\\n") {
+                    ch = '\n';
+                } else if (dataStr == "\\r") {
+                    ch = '\r';
+                } else if (dataStr == "\\s") {
+                    ch = ' ';
+                } else if (dataStr == "\\\\") {
+                    ch = '\\';
+                } else {
+                    ch = dataStr[0];
+                }
+
+                arr[ch]->freq = freq;
+                minHeap.push(arr[ch]);
+            }
+            createTree();  // Rebuild the Huffman Tree using the frequency data
+
+            // Read the padding information
+            int padding;
+            inFile >> padding;
+            inFile.get();  // Move to the next line after reading the padding info
+
+            // Step 2: Decode the encoded data using the Huffman tree
+            Node* currentNode = root;
+            string decodedText;
+            unsigned char byte;
+            while(inFile.read(reinterpret_cast<char*>(&byte), 1)) 
+            {
+                // Process each bit in the byte, but stop when reaching the padded bits
+                for(int i = 7; i >= 0; --i) 
+                {
+                    // Stop if we're in the last byte and padding bits are reached
+                    if (inFile.peek() == EOF && i < padding) break;
+
+                    bool bit = byte & (1 << i);
+                    currentNode = bit ? currentNode->right : currentNode->left;
+
+                    // When reaching a leaf node, append the character to the decoded text
+                    if (currentNode->left == NULL && currentNode->right == NULL) {
+                        decodedText += currentNode->data;
+                        currentNode = root;
+                    }
+                }
+            }
+            inFile.close();
+
+            // Step 3: Save decoded data to the output file
+            fstream outFile = openFile(outFileName, ios::out);
+            outFile << decodedText;
+            outFile.close();
         }
 
     public:
+        Huffman () 
+        {
+            createArr();
+        }
+
         // Compressing input file
         void compress(string inFileName, string outFileName) 
         {
-            createArr(inFileName);
-            createTree();
+            createMinHeap(inFileName);
             assignHCodes();
             encodeAndSaveFile(inFileName, outFileName);
         }
         
         // Decompressing input file
-        void decompress() 
+        void decompress(string inFileName, string outFileName) 
         {
-            saveDecodedFile();
+            saveDecodedFile(inFileName, outFileName);
         }
 };
 #endif

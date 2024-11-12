@@ -8,7 +8,7 @@ int main(int argc, char* argv[]) {
 		exit(1);
 	}
     
-    huffman f;
+    Huffman f;
     f.compress(argv[1], argv[2]);
     cout << "Compressed successfully" << endl;
     

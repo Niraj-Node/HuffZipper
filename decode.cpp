@@ -8,8 +8,8 @@ int main(int argc, char* argv[]) {
 		exit(1);
 	}
 
-    huffman f(argv[1], argv[2]);
-    f.decompress();
+    Huffman f;
+    f.decompress(argv[1], argv[2]);
     cout << "Decompressed successfully" << endl;
 
     return 0;
